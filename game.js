@@ -339,35 +339,39 @@ function drawBlock(block) {
 }
 
 function drawHudText(y, label, value) {
-  const left = FIELD.maxX + 24;
+  const left = FIELD.maxX + 20;
   const right = WINDOW.width - 18;
+  const top = y - 56;
   ctx.textBaseline = "alphabetic";
 
-  ctx.fillStyle = "rgba(16, 65, 84, .65)";
-  ctx.fillRect(left, y + 6, right - left, 2);
-  ctx.fillStyle = "rgba(255, 255, 255, .62)";
-  ctx.fillRect(left, y + 6, 42, 2);
+  ctx.fillStyle = "rgba(8, 38, 51, .72)";
+  ctx.fillRect(left, top, right - left, 55);
+  ctx.fillStyle = "#62d4ed";
+  ctx.fillRect(left, top, 5, 55);
+  ctx.strokeStyle = "rgba(255, 255, 255, .4)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(left + .5, top + .5, right - left - 1, 54);
 
-  ctx.fillStyle = "#d5f5ff";
-  ctx.font = "bold 14px 'Yu Gothic', Meiryo, sans-serif";
+  ctx.fillStyle = "#c9f6ff";
+  ctx.font = "bold 17px 'Yu Gothic', Meiryo, sans-serif";
   ctx.textAlign = "left";
-  ctx.shadowColor = "rgba(0, 0, 0, .5)";
-  ctx.shadowBlur = 1;
+  ctx.shadowColor = "rgba(0, 0, 0, .72)";
+  ctx.shadowBlur = 2;
   ctx.shadowOffsetY = 1;
-  ctx.fillText(label, left, y - 14);
+  ctx.fillText(label, left + 13, y - 32);
 
-  ctx.font = "bold 28px 'Yu Gothic', Meiryo, sans-serif";
+  ctx.font = "bold 42px 'Yu Gothic', Meiryo, sans-serif";
   ctx.textAlign = "right";
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = "rgba(19, 70, 87, .92)";
-  ctx.shadowColor = "rgba(0, 0, 0, .62)";
-  ctx.shadowBlur = 3;
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = "rgba(4, 30, 42, .95)";
+  ctx.shadowColor = "rgba(0, 0, 0, .8)";
+  ctx.shadowBlur = 4;
   ctx.shadowOffsetY = 2;
   ctx.strokeText(value, right, y);
-  const gradient = ctx.createLinearGradient(left, y - 29, left, y);
+  const gradient = ctx.createLinearGradient(left, y - 43, left, y);
   gradient.addColorStop(0, "#ffffff");
-  gradient.addColorStop(.52, "#ddf6ff");
-  gradient.addColorStop(1, "#7dcee5");
+  gradient.addColorStop(.5, "#daf8ff");
+  gradient.addColorStop(1, "#70d9ee");
   ctx.fillStyle = gradient;
   ctx.fillText(value, right, y);
   ctx.shadowColor = "transparent";
@@ -377,10 +381,10 @@ function drawHudText(y, label, value) {
 
 function drawHud() {
   ctx.save();
-  drawHudText(70, "STAGE", String(state.stage).padStart(2, " "));
-  drawHudText(108, "LIFE", String(state.life).padStart(2, " "));
-  drawHudText(146, "HIGHSCORE", String(state.highscore).padStart(8, " "));
-  drawHudText(184, "SCORE", String(state.score).padStart(8, " "));
+  drawHudText(96, "STAGE", String(state.stage).padStart(2, "0"));
+  drawHudText(160, "LIFE", String(state.life).padStart(2, "0"));
+  drawHudText(224, "HIGHSCORE", String(state.highscore).padStart(8, "0"));
+  drawHudText(288, "SCORE", String(state.score).padStart(8, "0"));
   ctx.restore();
 }
 
