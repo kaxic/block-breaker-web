@@ -338,53 +338,38 @@ function drawBlock(block) {
   if (filename) ctx.drawImage(images[filename], FIELD.minX + block.x * FIELD.blockW, FIELD.minY + block.y * FIELD.blockH, FIELD.blockW, FIELD.blockH);
 }
 
-function drawHudText(y, label, value) {
+function drawHudText(top, label, value) {
   const left = FIELD.maxX + 20;
   const right = WINDOW.width - 18;
-  const top = y - 56;
+  const height = 80;
+  const padding = 16;
   ctx.textBaseline = "alphabetic";
 
-  ctx.fillStyle = "rgba(8, 38, 51, .72)";
-  ctx.fillRect(left, top, right - left, 55);
+  ctx.fillStyle = "rgba(12, 35, 46, .94)";
+  ctx.fillRect(left, top, right - left, height);
   ctx.fillStyle = "#62d4ed";
-  ctx.fillRect(left, top, 5, 55);
-  ctx.strokeStyle = "rgba(255, 255, 255, .4)";
+  ctx.fillRect(left, top, 3, height);
+  ctx.strokeStyle = "rgba(255, 255, 255, .24)";
   ctx.lineWidth = 1;
-  ctx.strokeRect(left + .5, top + .5, right - left - 1, 54);
+  ctx.strokeRect(left + .5, top + .5, right - left - 1, height - 1);
 
-  ctx.fillStyle = "#c9f6ff";
-  ctx.font = "bold 17px 'Yu Gothic', Meiryo, sans-serif";
+  ctx.fillStyle = "#b9e7f0";
+  ctx.font = "600 20px 'Segoe UI', 'Yu Gothic', Meiryo, sans-serif";
   ctx.textAlign = "left";
-  ctx.shadowColor = "rgba(0, 0, 0, .72)";
-  ctx.shadowBlur = 2;
-  ctx.shadowOffsetY = 1;
-  ctx.fillText(label, left + 13, y - 32);
+  ctx.fillText(label, left + padding, top + 26);
 
-  ctx.font = "bold 42px 'Yu Gothic', Meiryo, sans-serif";
+  ctx.font = "700 40px 'Segoe UI', 'Yu Gothic', Meiryo, sans-serif";
   ctx.textAlign = "right";
-  ctx.lineWidth = 4;
-  ctx.strokeStyle = "rgba(4, 30, 42, .95)";
-  ctx.shadowColor = "rgba(0, 0, 0, .8)";
-  ctx.shadowBlur = 4;
-  ctx.shadowOffsetY = 2;
-  ctx.strokeText(value, right, y);
-  const gradient = ctx.createLinearGradient(left, y - 43, left, y);
-  gradient.addColorStop(0, "#ffffff");
-  gradient.addColorStop(.5, "#daf8ff");
-  gradient.addColorStop(1, "#70d9ee");
-  ctx.fillStyle = gradient;
-  ctx.fillText(value, right, y);
-  ctx.shadowColor = "transparent";
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetY = 0;
+  ctx.fillStyle = "#f5fcff";
+  ctx.fillText(value, right - padding, top + 66);
 }
 
 function drawHud() {
   ctx.save();
-  drawHudText(96, "STAGE", String(state.stage).padStart(2, "0"));
-  drawHudText(160, "LIFE", String(state.life).padStart(2, "0"));
-  drawHudText(224, "HIGHSCORE", String(state.highscore).padStart(8, "0"));
-  drawHudText(288, "SCORE", String(state.score).padStart(8, "0"));
+  drawHudText(40, "STAGE", String(state.stage));
+  drawHudText(132, "LIFE", String(state.life));
+  drawHudText(224, "HIGHSCORE", state.highscore.toLocaleString("en-US"));
+  drawHudText(316, "SCORE", state.score.toLocaleString("en-US"));
   ctx.restore();
 }
 
