@@ -354,14 +354,14 @@ function drawHudText(top, label, value) {
   ctx.strokeRect(left + .5, top + .5, right - left - 1, height - 1);
 
   ctx.fillStyle = "#b9e7f0";
-  ctx.font = "600 20px 'Segoe UI', 'Yu Gothic', Meiryo, sans-serif";
+  ctx.font = "700 32px 'Segoe UI', 'Yu Gothic', Meiryo, sans-serif";
   ctx.textAlign = "left";
-  ctx.fillText(label, left + padding, top + 26);
+  ctx.fillText(label, left + padding, top + 31);
 
   ctx.font = "700 40px 'Segoe UI', 'Yu Gothic', Meiryo, sans-serif";
   ctx.textAlign = "right";
   ctx.fillStyle = "#f5fcff";
-  ctx.fillText(value, right - padding, top + 66);
+  ctx.fillText(value, right - padding, top + 68);
 }
 
 function drawHud() {
