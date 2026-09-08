@@ -3,56 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#07101f" />
     <title>ブロック崩し for Web</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <main class="page-shell">
-      <section class="game-card" aria-labelledby="game-title">
-        <header class="game-header">
-          <div>
-            <p class="eyebrow">CANVAS ARCADE</p>
-            <h1 id="game-title">ブロック崩し <span>for Web</span></h1>
-          </div>
-          <button id="sound-button" class="icon-button" type="button" aria-pressed="true" title="サウンドのオン・オフ">♪</button>
-        </header>
-
-        <div class="status-bar" aria-live="polite">
-          <div class="status-item"><span>STAGE</span><strong id="stage-value">1 / 16</strong></div>
-          <div class="status-item"><span>LIFE</span><strong id="life-value">5</strong></div>
-          <div class="status-item"><span>SCORE</span><strong id="score-value">0</strong></div>
-          <div class="status-item"><span>BEST</span><strong id="best-value">0</strong></div>
-        </div>
-
-        <div class="canvas-frame">
-          <canvas id="game-canvas" width="960" height="640" aria-label="ブロック崩しゲーム画面"></canvas>
-          <div id="message-overlay" class="message-overlay" aria-live="assertive">
-            <p id="message-kicker">16 STAGES</p>
-            <h2 id="message-title">ブロック崩し</h2>
-            <p id="message-text">マウスまたは矢印キーでバーを動かそう</p>
-          </div>
-        </div>
-
-        <div class="action-row">
-          <button id="start-button" class="primary-button" type="button">ゲームを始める</button>
-          <button id="restart-button" class="secondary-button" type="button">最初から</button>
-        </div>
-
-        <section class="guide" aria-label="ゲームの説明">
-          <div>
-            <h2>操作</h2>
-            <p>マウス・指・<kbd>←</kbd><kbd>→</kbd>でバーを動かします。<kbd>Space</kbd>で開始・一時停止。</p>
-          </div>
-          <div>
-            <h2>特殊ブロック</h2>
-            <p><i class="legend bomb"></i>爆発　<i class="legend life"></i>1UP　<i class="legend score"></i>+1000　<i class="legend wide"></i>バー拡大　<i class="legend narrow"></i>バー縮小</p>
-          </div>
-        </section>
-      </section>
-      <footer>Web版は画像・音声の外部素材を使わずに再構成しています。</footer>
+    <main>
+      <canvas id="game-canvas" width="780" height="620" aria-label="ブロック崩し"></canvas>
+      <p class="instructions" aria-label="操作方法：タイトル画面で左クリックすると開始します。マウスでバーを動かし、右クリックで一時停止、左クリックで再開します。">
+        <span class="instruction-label">操作方法</span>
+        <span class="instruction-item">開始・再開 <kbd>左クリック</kbd></span>
+        <span class="instruction-item">バー移動 <kbd>マウス</kbd></span>
+        <span class="instruction-item">一時停止 <kbd>右クリック</kbd></span>
+      </p>
     </main>
     <script src="game.js"></script>
   </body>
 </html>
-

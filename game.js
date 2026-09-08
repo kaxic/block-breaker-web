@@ -2,393 +2,486 @@
 
 const canvas = document.querySelector("#game-canvas");
 const ctx = canvas.getContext("2d");
-const ui = {
-  stage: document.querySelector("#stage-value"), life: document.querySelector("#life-value"),
-  score: document.querySelector("#score-value"), best: document.querySelector("#best-value"),
-  overlay: document.querySelector("#message-overlay"), kicker: document.querySelector("#message-kicker"),
-  title: document.querySelector("#message-title"), text: document.querySelector("#message-text"),
-  start: document.querySelector("#start-button"), restart: document.querySelector("#restart-button"),
-  sound: document.querySelector("#sound-button")
+
+const WINDOW = { width: 780, height: 620 };
+const FIELD = { minX: 10, minY: 10, maxX: 490, maxY: 610, blockW: 40, blockH: 20, cols: 12, rows: 30 };
+const LIFE_SET = 5;
+const STAGE_NUM = 16;
+const START_BUTTON = { x: (WINDOW.width - 359) / 2, y: 400, width: 359, height: 70 };
+
+const TYPE = {
+  EMPTY: 0, NORMAL1: 1, NORMAL2: 2, NORMAL3: 3, NORMAL4: 4, NORMAL5: 5, NORMAL6: 6,
+  HARD1: 7, BOMB: 8, LIFE: 9, V_HARD: 10, SCORE: 11, EXTEND: 12, SHRINK: 13,
+  CLEAR: 14, HARD2: 15
 };
 
-const W = canvas.width, H = canvas.height;
-const field = { x: 42, y: 40, w: 650, h: 560, cols: 12, rows: 16 };
-field.cellW = field.w / field.cols;
-field.cellH = 23;
-const TYPES = { EMPTY: 0, NORMAL: 1, HARD: 7, BOMB: 8, LIFE: 9, STEEL: 10, SCORE: 11, WIDE: 12, NARROW: 13, CLEAR: 14 };
-const COLORS = ["", "#f5576c", "#ff8a55", "#f9cb4f", "#70db7a", "#3cc6dd", "#8579ff"];
+const imageFiles = [
+  "title.png", "gamestart.png", "back.png", "game.png", "block1.png", "block2.png", "block3.png",
+  "block4.png", "block5.png", "block6.png", "Hblock1.png", "Hblock2.png", "bomb.png", "1up.png",
+  "VHblock.png", "score.png", "extend.png", "shrink.png", "C.png", "player.png", "Ready.png",
+  "start.png", "pause.png", "clear.png", "allclear.png"
+];
+const soundFiles = ["bound.wav", "delete.wav", "Hblock.mp3", "爆発.wav", "1up.mp3", "score.wav", "change.mp3", "victory.mp3"];
 
-let state, input, audio, lastTime;
+const images = {};
+const sounds = {};
+let stageLayouts = [];
+let state;
+let lastTime = performance.now();
+let accumulator = 0;
+let audioUnlocked = false;
 
-function freshState() {
+function loadImage(filename) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve([filename, image]);
+    image.onerror = () => reject(new Error(`画像を読み込めません: ${filename}`));
+    image.src = `assets/images/${filename}`;
+  });
+}
+
+function loadSound(filename) {
+  const sound = new Audio(`assets/sounds/${filename}`);
+  sound.preload = "auto";
+  return [filename, sound];
+}
+
+function playSound(filename) {
+  if (!audioUnlocked || !sounds[filename]) return;
+  const sound = sounds[filename].cloneNode();
+  sound.play().catch(() => {});
+}
+
+async function loadStages() {
+  const files = Array.from({ length: STAGE_NUM }, (_, index) => index + 1);
+  return Promise.all(files.map(async number => {
+    const response = await fetch(`assets/stages/block${number}.csv`);
+    if (!response.ok) throw new Error(`ステージ ${number} を読み込めません`);
+    const text = (await response.text()).replace(/^\uFEFF/, "").trim();
+    return text.split(/\r?\n/).filter(Boolean).map(row => row.split(",").map(value => Number(value.trim())));
+  }));
+}
+
+function createState() {
   return {
-    mode: "title", stage: 1, lives: 5, score: 0, best: Number(localStorage.getItem("block-breaker-web-best") || 0),
-    paddle: { x: field.x + field.w / 2, y: field.y + field.h - 32, half: 57, h: 13, target: field.x + field.w / 2 },
-    ball: { x: 0, y: 0, r: 7, vx: 0, vy: 0, speed: 390 }, blocks: [], particles: [], timer: 0,
-    notice: "", sound: true
+    mode: "title", stage: 1, life: LIFE_SET, score: 0,
+    highscore: Number(localStorage.getItem("block-breaker-web-highscore") || 0),
+    paddle: { x: 320, y: 500, width: 40, height: 15 },
+    ball: { x: 150, y: 400, radius: 5, vx: Math.cos(Math.PI / 4) * 5, vy: Math.sin(Math.PI / 4) * 5 },
+    blocks: [], readyFrames: 0, clearFrames: 0, effects: []
   };
-}
-
-function showMessage(kicker, title, text) {
-  ui.kicker.textContent = kicker;
-  ui.title.textContent = title;
-  ui.text.textContent = text;
-  ui.overlay.classList.remove("hidden");
-}
-
-function hideMessage() { ui.overlay.classList.add("hidden"); }
-
-function updateUi() {
-  ui.stage.textContent = `${state.stage} / 16`;
-  ui.life.textContent = state.lives;
-  ui.score.textContent = state.score.toLocaleString("ja-JP");
-  ui.best.textContent = state.best.toLocaleString("ja-JP");
-}
-
-function stageKind(stage, row, col) {
-  const normal = ((stage + row * 2 + col) % 6) + 1;
-  if (stage >= 5 && (row + col * 2 + stage) % 19 === 0) return TYPES.HARD;
-  return normal;
-}
-
-function createStage(stage) {
-  const blocks = [];
-  const activeRows = Math.min(5 + Math.ceil(stage / 2), 13);
-  const center = (field.cols - 1) / 2;
-  for (let row = 0; row < activeRows; row++) {
-    for (let col = 0; col < field.cols; col++) {
-      const distance = Math.abs(col - center);
-      const gap = (stage % 4 === 0 && row === 1 && (col === 0 || col === field.cols - 1)) ||
-        (stage >= 9 && row % 4 === 3 && distance > 3);
-      if (gap) continue;
-      blocks.push(makeBlock(col, row, stageKind(stage, row, col)));
-    }
-  }
-  const replace = (col, row, type) => {
-    const old = blocks.find(b => b.col === col && b.row === row);
-    if (old) { old.type = type; old.hp = type === TYPES.HARD ? 2 : 1; }
-  };
-  if (stage >= 2) replace(5, 1, TYPES.BOMB);
-  if (stage >= 3) replace(2, Math.min(3, activeRows - 1), TYPES.HARD);
-  if (stage >= 4) replace(9, Math.min(4, activeRows - 1), TYPES.STEEL);
-  if (stage >= 5) replace(1, 1, TYPES.LIFE);
-  if (stage >= 6) replace(10, 2, TYPES.SCORE);
-  if (stage >= 7) replace(3, 0, TYPES.WIDE);
-  if (stage >= 8) replace(8, 0, TYPES.NARROW);
-  if (stage % 4 === 0) replace(5, activeRows - 1, TYPES.CLEAR);
-  if (stage === 16) {
-    for (let col = 0; col < field.cols; col++) if (col !== 5 && col !== 6) replace(col, 0, TYPES.HARD);
-    replace(5, 0, TYPES.CLEAR); replace(6, 0, TYPES.BOMB);
-  }
-  return blocks;
-}
-
-function makeBlock(col, row, type) {
-  return { col, row, type, hp: type === TYPES.HARD ? 2 : 1, alive: true, flash: 0 };
 }
 
 function resetBall() {
-  const p = state.paddle;
-  const b = state.ball;
-  b.x = p.x; b.y = p.y - p.h - b.r - 2;
-  b.speed = 385 + Math.min(state.stage * 9, 130);
-  b.vx = 0; b.vy = 0;
+  state.ball.x = 150;
+  state.ball.y = 400;
+  state.ball.vx = Math.cos(Math.PI / 4) * 5;
+  state.ball.vy = Math.sin(Math.PI / 4) * 5;
+}
+
+function updateHighscore() {
+  if (state.score > state.highscore) {
+    state.highscore = state.score;
+    localStorage.setItem("block-breaker-web-highscore", String(state.highscore));
+  }
 }
 
 function resetGame() {
-  state = freshState();
-  state.blocks = createStage(1);
+  const highscore = state ? state.highscore : Number(localStorage.getItem("block-breaker-web-highscore") || 0);
+  state = createState();
+  state.highscore = highscore;
+  setStage(1);
+  state.mode = "title";
+  canvas.style.cursor = "pointer";
+}
+
+function setStage(number) {
+  state.stage = number;
+  state.blocks = stageLayouts[number - 1].map((row, y) => row.map((type, x) => ({ x, y, type, live: type !== TYPE.EMPTY })));
+}
+
+function beginGame() {
+  // 最初のクリックを音声再生の許可操作として使う。
+  audioUnlocked = true;
+  state.mode = "game";
+  state.life = LIFE_SET;
+  state.score = 0;
+  setStage(1);
+  state.paddle.x = 320;
+  state.paddle.width = 40;
   resetBall();
-  showMessage("16 STAGES", "ブロック崩し", "マウスまたは矢印キーでバーを動かそう");
-  ui.start.textContent = "ゲームを始める";
-  updateUi();
+  state.readyFrames = 120;
+  state.clearFrames = 0;
+  state.effects = [];
+  canvas.style.cursor = "none";
 }
 
-function prepareStage() {
-  state.blocks = createStage(state.stage);
-  state.particles = [];
-  state.mode = "ready";
-  state.timer = 1.15;
-  state.paddle.half = 57;
-  resetBall();
-  hideMessage();
-  ui.start.textContent = "一時停止";
-  updateUi();
+function getBlockAt(pointX, pointY) {
+  const column = Math.floor((pointX - FIELD.minX) / FIELD.blockW);
+  const row = Math.floor((pointY - FIELD.minY) / FIELD.blockH);
+  if (column < 0 || row < 0 || column >= FIELD.cols || row >= FIELD.rows) return null;
+  return state.blocks[row]?.[column] || null;
 }
 
-function startOrPause() {
-  ensureAudio();
-  if (state.mode === "title" || state.mode === "gameover" || state.mode === "allclear") {
-    state.stage = 1; state.lives = 5; state.score = 0; prepareStage(); return;
-  }
-  if (state.mode === "ready") { launch(); return; }
-  if (state.mode === "playing") { state.mode = "paused"; showMessage("PAUSE", "一時停止", "Space またはボタンで再開"); ui.start.textContent = "再開"; return; }
-  if (state.mode === "paused") { state.mode = "playing"; hideMessage(); ui.start.textContent = "一時停止"; }
-}
-
-function launch() {
-  const b = state.ball;
-  const angle = -Math.PI / 2 - .34;
-  b.vx = Math.cos(angle) * b.speed;
-  b.vy = Math.sin(angle) * b.speed;
-  state.mode = "playing";
-  hideMessage();
-  ui.start.textContent = "一時停止";
-  sound("launch");
-}
-
-function setBest() {
-  if (state.score > state.best) {
-    state.best = state.score;
-    localStorage.setItem("block-breaker-web-best", String(state.best));
+function addEffect(x, y) {
+  for (let index = 0; index < 8; index++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 1 + Math.random() * 2;
+    state.effects.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: 22 });
   }
 }
 
-function blockRect(block) { return { x: field.x + block.col * field.cellW + 3, y: field.y + block.row * field.cellH + 3, w: field.cellW - 6, h: field.cellH - 6 }; }
-
-function isBreakable(block) { return block.alive && block.type !== TYPES.STEEL; }
-
-function remainingBlocks() { return state.blocks.some(isBreakable); }
-
-function burst(x, y, color, count = 12) {
-  for (let i = 0; i < count; i++) {
-    const a = Math.random() * Math.PI * 2, s = 35 + Math.random() * 150;
-    state.particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: .35 + Math.random() * .35, max: .7, color });
+function explode(block) {
+  for (let y = block.y - 1; y <= block.y + 1; y++) {
+    for (let x = block.x - 1; x <= block.x + 1; x++) {
+      if (x < 0 || y < 0 || x >= FIELD.cols || y >= FIELD.rows) continue;
+      destroyBlock(state.blocks[y][x], true);
+    }
   }
 }
 
 function destroyBlock(block, fromExplosion = false) {
-  if (!block || !block.alive || block.type === TYPES.STEEL) return;
-  const rect = blockRect(block);
-  const cx = rect.x + rect.w / 2, cy = rect.y + rect.h / 2;
-  if (block.type === TYPES.HARD && block.hp === 2 && !fromExplosion) {
-    block.hp = 1; block.flash = .25; sound("hard"); return;
-  }
-  block.alive = false;
-  let color = COLORS[block.type] || "#e6f0ff";
-  if (block.type >= 1 && block.type <= 6 || block.type === TYPES.HARD) state.score += 100;
-  if (block.type === TYPES.SCORE) { state.score += 1000; color = "#ffe06b"; sound("score"); }
-  else if (block.type === TYPES.LIFE) { state.lives++; color = "#64f29a"; sound("life"); }
-  else if (block.type === TYPES.WIDE) { state.paddle.half = 78; color = "#878dff"; sound("power"); }
-  else if (block.type === TYPES.NARROW) { state.paddle.half = 37; color = "#dc7aff"; sound("power"); }
-  else if (block.type === TYPES.CLEAR) { color = "#eff9ff"; sound("clear"); burst(cx, cy, color, 32); clearStage(true); return; }
-  else if (block.type === TYPES.BOMB) { color = "#ff725f"; sound("bomb"); }
-  else sound("hit");
-  burst(cx, cy, color, block.type === TYPES.BOMB ? 24 : 9);
-  if (block.type === TYPES.BOMB) {
-    for (const target of state.blocks) {
-      if (target !== block && Math.abs(target.col - block.col) <= 1 && Math.abs(target.row - block.row) <= 1) destroyBlock(target, true);
-    }
-  }
-  setBest(); updateUi();
-  if (!remainingBlocks()) clearStage(false);
-}
+  if (!block || !block.live) return false;
+  const centerX = FIELD.minX + (block.x + .5) * FIELD.blockW;
+  const centerY = FIELD.minY + (block.y + .5) * FIELD.blockH;
 
-function clearStage(allClear) {
-  if (state.mode !== "playing") return;
-  state.mode = "stageclear";
-  state.timer = 1.25;
-  state.notice = allClear ? "全消去！" : "ステージクリア！";
-  sound("stage");
-}
-
-function loseLife() {
-  state.lives--;
-  setBest(); updateUi();
-  if (state.lives <= 0) {
-    state.mode = "gameover";
-    showMessage("GAME OVER", "ゲームオーバー", `スコア ${state.score.toLocaleString("ja-JP")}　Spaceで再挑戦`);
-    ui.start.textContent = "もう一度遊ぶ";
-    sound("lose");
-    return;
-  }
-  state.mode = "ready";
-  state.timer = 1.0;
-  resetBall();
-  sound("lose");
-}
-
-function hitBlock(block) {
-  if (block.type === TYPES.STEEL) { block.flash = .15; sound("hard"); return; }
-  destroyBlock(block);
-}
-
-function circleRectCollision(ball, rect) {
-  const nx = Math.max(rect.x, Math.min(ball.x, rect.x + rect.w));
-  const ny = Math.max(rect.y, Math.min(ball.y, rect.y + rect.h));
-  const dx = ball.x - nx, dy = ball.y - ny;
-  return dx * dx + dy * dy <= ball.r * ball.r;
-}
-
-function reflectFromBlock(block) {
-  const rect = blockRect(block), b = state.ball;
-  const prevX = b.x - b.vx * .016, prevY = b.y - b.vy * .016;
-  const crossedHorizontal = prevY + b.r <= rect.y || prevY - b.r >= rect.y + rect.h;
-  if (crossedHorizontal) b.vy *= -1;
-  else b.vx *= -1;
-}
-
-function movePaddle(dt) {
-  const p = state.paddle;
-  if (input.left) p.target -= 610 * dt;
-  if (input.right) p.target += 610 * dt;
-  const min = field.x + p.half, max = field.x + field.w - p.half;
-  p.target = Math.max(min, Math.min(max, p.target));
-  p.x += (p.target - p.x) * Math.min(1, dt * 17);
-  if (state.mode === "ready") resetBall();
-}
-
-function moveBall(dt) {
-  const b = state.ball, p = state.paddle;
-  b.x += b.vx * dt;
-  b.y += b.vy * dt;
-  if (b.x - b.r < field.x) { b.x = field.x + b.r; b.vx = Math.abs(b.vx); sound("wall"); }
-  if (b.x + b.r > field.x + field.w) { b.x = field.x + field.w - b.r; b.vx = -Math.abs(b.vx); sound("wall"); }
-  if (b.y - b.r < field.y) { b.y = field.y + b.r; b.vy = Math.abs(b.vy); sound("wall"); }
-  const paddleRect = { x: p.x - p.half, y: p.y - p.h / 2, w: p.half * 2, h: p.h };
-  if (b.vy > 0 && circleRectCollision(b, paddleRect)) {
-    b.y = paddleRect.y - b.r - .5;
-    const hit = Math.max(-1, Math.min(1, (b.x - p.x) / p.half));
-    const angle = -Math.PI / 2 + hit * (Math.PI / 2.25);
-    b.speed = Math.min(590, b.speed + 3.5);
-    b.vx = Math.cos(angle) * b.speed;
-    b.vy = Math.sin(angle) * b.speed;
-    sound("paddle");
-  }
-  for (const block of state.blocks) {
-    if (!block.alive) continue;
-    const rect = blockRect(block);
-    if (circleRectCollision(b, rect)) {
-      reflectFromBlock(block);
-      hitBlock(block);
+  switch (block.type) {
+    case TYPE.NORMAL1:
+    case TYPE.NORMAL2:
+    case TYPE.NORMAL3:
+    case TYPE.NORMAL4:
+    case TYPE.NORMAL5:
+    case TYPE.NORMAL6:
+    case TYPE.HARD2:
+      block.live = false;
+      state.score += 100;
+      addEffect(centerX, centerY);
+      playSound("delete.wav");
       break;
-    }
+    case TYPE.HARD1:
+      if (fromExplosion) {
+        block.live = false;
+        state.score += 100;
+        addEffect(centerX, centerY);
+        playSound("delete.wav");
+      } else {
+        block.type = TYPE.HARD2;
+        playSound("Hblock.mp3");
+      }
+      break;
+    case TYPE.BOMB:
+      block.live = false;
+      addEffect(centerX, centerY);
+      playSound("爆発.wav");
+      explode(block);
+      break;
+    case TYPE.LIFE:
+      block.live = false;
+      state.life++;
+      addEffect(centerX, centerY);
+      playSound("1up.mp3");
+      break;
+    case TYPE.V_HARD:
+      return true;
+    case TYPE.SCORE:
+      block.live = false;
+      state.score += 1000;
+      addEffect(centerX, centerY);
+      playSound("score.wav");
+      break;
+    case TYPE.EXTEND:
+      block.live = false;
+      state.paddle.width = 55;
+      addEffect(centerX, centerY);
+      playSound("change.mp3");
+      break;
+    case TYPE.SHRINK:
+      block.live = false;
+      state.paddle.width = 25;
+      addEffect(centerX, centerY);
+      playSound("change.mp3");
+      break;
+    case TYPE.CLEAR:
+      block.live = false;
+      startClear();
+      break;
+    default:
+      return false;
   }
-  if (b.y - b.r > field.y + field.h) loseLife();
+  updateHighscore();
+  return true;
 }
 
-function update(dt) {
-  movePaddle(dt);
-  for (const particle of state.particles) { particle.x += particle.vx * dt; particle.y += particle.vy * dt; particle.vy += 180 * dt; particle.life -= dt; }
-  state.particles = state.particles.filter(p => p.life > 0);
-  for (const block of state.blocks) block.flash = Math.max(0, block.flash - dt);
-  if (state.mode === "ready") {
-    state.timer -= dt;
-    if (state.timer <= 0) launch();
-  } else if (state.mode === "playing") {
-    moveBall(dt);
-  } else if (state.mode === "stageclear") {
-    state.timer -= dt;
-    if (state.timer <= 0) {
-      if (state.stage === 16) {
+function hitBlockAt(pointX, pointY) { return destroyBlock(getBlockAt(pointX, pointY)); }
+
+function hasClearedRequiredBlocks() {
+  return !state.blocks.flat().some(block => block.live && (block.type < TYPE.LIFE || block.type === TYPE.HARD2));
+}
+
+function startClear() {
+  if (state.clearFrames > 0) return;
+  state.clearFrames = 400;
+  updateHighscore();
+  playSound("victory.mp3");
+}
+
+function reflect(normalX, normalY) {
+  const ball = state.ball;
+  const normalLength = Math.hypot(normalX, normalY);
+  if (normalLength === 0) return;
+
+  // DxLib版の Ball::Reflect と同じく、1フレーム前へ戻してから法線反射する。
+  ball.x -= ball.vx;
+  ball.y -= ball.vy;
+  const nx = normalX / normalLength;
+  const ny = normalY / normalLength;
+  const projection = ball.vx * nx + ball.vy * ny;
+  ball.vx -= 2 * projection * nx;
+  ball.vy -= 2 * projection * ny;
+  ball.x += ball.vx;
+  ball.y += ball.vy;
+  playSound("bound.wav");
+}
+
+function reflectX() { reflect(1, 0); }
+function reflectY() { reflect(0, 1); }
+
+function moveBall() {
+  const ball = state.ball;
+  const paddle = state.paddle;
+  const left = ball.x - ball.radius;
+  const right = ball.x + ball.radius;
+  const top = ball.y - ball.radius;
+  const bottom = ball.y + ball.radius;
+
+  if (left < FIELD.minX || right > FIELD.maxX) reflectX();
+  if (top < FIELD.minY) reflectY();
+
+  const paddleTop = paddle.y - paddle.height;
+  if (ball.x >= paddle.x - paddle.width && ball.x <= paddle.x + paddle.width && bottom > paddleTop && bottom <= paddleTop + ball.vy) {
+    // 元版は当たった位置を角度へ直線変換せず、バー中心と画面下端を結ぶ点を基準に反射する。
+    reflect(ball.x - paddle.x, ball.y - FIELD.maxY);
+    ball.y = paddleTop - ball.radius;
+    const speed = Math.hypot(ball.vx, ball.vy);
+    if (-ball.vy / speed < Math.sin(40 * Math.PI / 180)) {
+      ball.vx = (ball.vx < 0 ? -1 : 1) * speed * Math.cos(40 * Math.PI / 180);
+      ball.vy = -speed * Math.sin(40 * Math.PI / 180);
+    }
+  }
+
+  ball.x += ball.vx;
+  ball.y += ball.vy;
+}
+
+function updateEffects() {
+  state.effects.forEach(effect => {
+    effect.x += effect.vx;
+    effect.y += effect.vy;
+    effect.vy += .07;
+    effect.life--;
+  });
+  state.effects = state.effects.filter(effect => effect.life > 0);
+}
+
+function updateGameFrame() {
+  updateEffects();
+  if (state.clearFrames > 0) {
+    state.clearFrames--;
+    if (state.clearFrames === 0) {
+      if (state.stage === STAGE_NUM) {
+        updateHighscore();
         state.mode = "allclear";
-        setBest(); updateUi();
-        showMessage("CONGRATULATIONS", "ALL CLEAR!", `最終スコア ${state.score.toLocaleString("ja-JP")}　Spaceで最初から`);
-        ui.start.textContent = "もう一度遊ぶ";
+        canvas.style.cursor = "pointer";
       } else {
-        state.stage++;
-        prepareStage();
+        setStage(state.stage + 1);
+        state.paddle.width = 40;
+        resetBall();
+        state.readyFrames = 120;
       }
     }
+    return;
   }
-}
-
-function roundRect(x, y, w, h, r) {
-  ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill();
-}
-
-function drawBackground() {
-  const gradient = ctx.createLinearGradient(0, 0, 0, H);
-  gradient.addColorStop(0, "#081b3b"); gradient.addColorStop(1, "#06111e");
-  ctx.fillStyle = gradient; ctx.fillRect(0, 0, W, H);
-  ctx.save(); ctx.globalAlpha = .22; ctx.strokeStyle = "#4b8ec3"; ctx.lineWidth = 1;
-  for (let x = field.x; x <= field.x + field.w; x += field.cellW) { ctx.beginPath(); ctx.moveTo(x, field.y); ctx.lineTo(x, field.y + field.h); ctx.stroke(); }
-  for (let y = field.y; y <= field.y + field.h; y += field.cellH) { ctx.beginPath(); ctx.moveTo(field.x, y); ctx.lineTo(field.x + field.w, y); ctx.stroke(); }
-  ctx.restore();
-  ctx.strokeStyle = "#7ed6ff"; ctx.lineWidth = 2; ctx.strokeRect(field.x, field.y, field.w, field.h);
+  if (state.readyFrames > 0) {
+    state.readyFrames--;
+    return;
+  }
+  if (hitBlockAt(state.ball.x + state.ball.radius, state.ball.y) || hitBlockAt(state.ball.x - state.ball.radius, state.ball.y)) reflectX();
+  if (hitBlockAt(state.ball.x, state.ball.y + state.ball.radius) || hitBlockAt(state.ball.x, state.ball.y - state.ball.radius)) reflectY();
+  if (hasClearedRequiredBlocks()) {
+    startClear();
+    return;
+  }
+  moveBall();
+  if (state.ball.y + state.ball.radius >= FIELD.maxY) {
+    playSound("爆発.wav");
+    state.life--;
+    if (state.life <= 0) {
+      updateHighscore();
+      resetGame();
+    } else {
+      state.paddle.width = 40;
+      resetBall();
+      state.readyFrames = 120;
+    }
+  }
 }
 
 function drawBlock(block) {
-  if (!block.alive) return;
-  const r = blockRect(block), type = block.type;
-  let color = COLORS[type] || "#c3d2eb";
-  if (type === TYPES.HARD) color = block.hp === 2 ? "#c9d4e6" : "#8196b3";
-  if (type === TYPES.BOMB) color = "#e9544e";
-  if (type === TYPES.LIFE) color = "#45d77b";
-  if (type === TYPES.STEEL) color = "#5e718d";
-  if (type === TYPES.SCORE) color = "#f3bc45";
-  if (type === TYPES.WIDE) color = "#777de8";
-  if (type === TYPES.NARROW) color = "#c45dde";
-  if (type === TYPES.CLEAR) color = "#e9f8ff";
+  if (!block.live) return;
+  const filename = {
+    [TYPE.NORMAL1]: "block1.png", [TYPE.NORMAL2]: "block2.png", [TYPE.NORMAL3]: "block3.png",
+    [TYPE.NORMAL4]: "block4.png", [TYPE.NORMAL5]: "block5.png", [TYPE.NORMAL6]: "block6.png",
+    [TYPE.HARD1]: "Hblock1.png", [TYPE.HARD2]: "Hblock2.png", [TYPE.BOMB]: "bomb.png",
+    [TYPE.LIFE]: "1up.png", [TYPE.V_HARD]: "VHblock.png", [TYPE.SCORE]: "score.png",
+    [TYPE.EXTEND]: "extend.png", [TYPE.SHRINK]: "shrink.png", [TYPE.CLEAR]: "C.png"
+  }[block.type];
+  if (filename) ctx.drawImage(images[filename], FIELD.minX + block.x * FIELD.blockW, FIELD.minY + block.y * FIELD.blockH, FIELD.blockW, FIELD.blockH);
+}
+
+function drawHudText(y, label, value) {
+  const left = FIELD.maxX + 24;
+  const right = WINDOW.width - 18;
+  ctx.textBaseline = "alphabetic";
+
+  ctx.fillStyle = "rgba(16, 65, 84, .65)";
+  ctx.fillRect(left, y + 6, right - left, 2);
+  ctx.fillStyle = "rgba(255, 255, 255, .62)";
+  ctx.fillRect(left, y + 6, 42, 2);
+
+  ctx.fillStyle = "#d5f5ff";
+  ctx.font = "bold 14px 'Yu Gothic', Meiryo, sans-serif";
+  ctx.textAlign = "left";
+  ctx.shadowColor = "rgba(0, 0, 0, .5)";
+  ctx.shadowBlur = 1;
+  ctx.shadowOffsetY = 1;
+  ctx.fillText(label, left, y - 14);
+
+  ctx.font = "bold 28px 'Yu Gothic', Meiryo, sans-serif";
+  ctx.textAlign = "right";
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = "rgba(19, 70, 87, .92)";
+  ctx.shadowColor = "rgba(0, 0, 0, .62)";
+  ctx.shadowBlur = 3;
+  ctx.shadowOffsetY = 2;
+  ctx.strokeText(value, right, y);
+  const gradient = ctx.createLinearGradient(left, y - 29, left, y);
+  gradient.addColorStop(0, "#ffffff");
+  gradient.addColorStop(.52, "#ddf6ff");
+  gradient.addColorStop(1, "#7dcee5");
+  ctx.fillStyle = gradient;
+  ctx.fillText(value, right, y);
+  ctx.shadowColor = "transparent";
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+}
+
+function drawHud() {
   ctx.save();
-  ctx.shadowColor = color; ctx.shadowBlur = block.flash > 0 ? 18 : 5;
-  ctx.fillStyle = color; roundRect(r.x, r.y, r.w, r.h, 5);
-  ctx.shadowBlur = 0; ctx.fillStyle = "rgba(255,255,255,.25)"; roundRect(r.x + 2, r.y + 2, r.w - 4, 4, 2);
-  ctx.fillStyle = type === TYPES.CLEAR ? "#193557" : "rgba(5,17,37,.75)";
-  ctx.font = "800 11px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  const label = type === TYPES.BOMB ? "●" : type === TYPES.LIFE ? "+1" : type === TYPES.STEEL ? "◆" : type === TYPES.SCORE ? "+" : type === TYPES.WIDE ? "↔" : type === TYPES.NARROW ? "↕" : type === TYPES.CLEAR ? "★" : type === TYPES.HARD ? (block.hp === 2 ? "Ⅱ" : "Ⅰ") : "";
-  if (label) ctx.fillText(label, r.x + r.w / 2, r.y + r.h / 2 + .5);
+  drawHudText(70, "STAGE", String(state.stage).padStart(2, " "));
+  drawHudText(108, "LIFE", String(state.life).padStart(2, " "));
+  drawHudText(146, "HIGHSCORE", String(state.highscore).padStart(8, " "));
+  drawHudText(184, "SCORE", String(state.score).padStart(8, " "));
   ctx.restore();
 }
 
-function drawGame() {
-  drawBackground();
-  for (const block of state.blocks) drawBlock(block);
-  const p = state.paddle, b = state.ball;
-  ctx.save(); ctx.shadowColor = "#5be4ff"; ctx.shadowBlur = 16; ctx.fillStyle = "#73dfff"; roundRect(p.x - p.half, p.y - p.h / 2, p.half * 2, p.h, 7); ctx.restore();
-  ctx.save(); ctx.shadowColor = "#fff"; ctx.shadowBlur = 13; ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-  for (const particle of state.particles) { ctx.save(); ctx.globalAlpha = Math.max(0, particle.life / particle.max); ctx.fillStyle = particle.color; ctx.fillRect(particle.x - 2, particle.y - 2, 4, 4); ctx.restore(); }
-  if (state.mode === "stageclear") {
-    ctx.save(); ctx.fillStyle = "rgba(0,11,29,.66)"; ctx.fillRect(field.x, field.y, field.w, field.h); ctx.fillStyle = "#eaf7ff"; ctx.textAlign = "center"; ctx.font = "800 38px system-ui, sans-serif"; ctx.fillText(state.notice, field.x + field.w / 2, field.y + field.h / 2); ctx.restore();
+function drawGameScreen() {
+  ctx.drawImage(images["back.png"], 0, 0, WINDOW.width, WINDOW.height);
+  ctx.drawImage(images["game.png"], FIELD.minX, FIELD.minY, 480, 600);
+  state.blocks.flat().forEach(drawBlock);
+  const paddle = state.paddle;
+  ctx.drawImage(images["player.png"], paddle.x - paddle.width, paddle.y - paddle.height, paddle.width * 2, paddle.height * 2);
+  ctx.fillStyle = "white";
+  ctx.beginPath();
+  ctx.arc(state.ball.x, state.ball.y, state.ball.radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#fff27c";
+  state.effects.forEach(effect => {
+    ctx.globalAlpha = Math.max(0, effect.life / 22);
+    ctx.fillRect(effect.x - 2, effect.y - 2, 4, 4);
+  });
+  ctx.globalAlpha = 1;
+  drawHud();
+  if (state.clearFrames > 0) {
+    const image = images["clear.png"];
+    ctx.drawImage(image, (FIELD.maxX + FIELD.minX - image.width) / 2, (FIELD.maxY + FIELD.minY - image.height) / 2);
+  } else if (state.readyFrames > 0) {
+    const image = state.readyFrames > 30 ? images["Ready.png"] : images["start.png"];
+    ctx.drawImage(image, (FIELD.maxX + FIELD.minX - image.width) / 2, (FIELD.maxY + FIELD.minY - image.height) / 2);
   }
-  ctx.save(); ctx.fillStyle = "#90a8c7"; ctx.font = "700 15px system-ui, sans-serif"; ctx.textAlign = "left"; ctx.fillText("BLOCKS", 745, 90); ctx.fillStyle = "#ffffff"; ctx.font = "800 34px system-ui, sans-serif"; ctx.fillText(String(state.blocks.filter(isBreakable).length), 745, 128); ctx.fillStyle = "#94a7c3"; ctx.font = "600 15px system-ui, sans-serif"; ctx.fillText("壊せないブロック", 745, 188); ctx.fillStyle = "#e9f3ff"; ctx.font = "800 26px system-ui, sans-serif"; ctx.fillText(String(state.blocks.filter(b => b.alive && b.type === TYPES.STEEL).length), 745, 218); ctx.restore();
 }
 
-function frame(now) {
-  const dt = Math.min(.035, (now - lastTime) / 1000 || 0);
+function draw() {
+  ctx.clearRect(0, 0, WINDOW.width, WINDOW.height);
+  if (state.mode === "title") {
+    ctx.drawImage(images["title.png"], 0, 0, WINDOW.width, WINDOW.height);
+    ctx.drawImage(images["gamestart.png"], START_BUTTON.x, START_BUTTON.y);
+  } else if (state.mode === "pause") {
+    ctx.drawImage(images["pause.png"], 0, 0, WINDOW.width, WINDOW.height);
+  } else if (state.mode === "allclear") {
+    ctx.drawImage(images["allclear.png"], 0, 0, WINDOW.width, WINDOW.height);
+  } else {
+    drawGameScreen();
+  }
+}
+
+function tick(now) {
+  const elapsed = Math.min(.1, (now - lastTime) / 1000);
   lastTime = now;
-  update(dt); drawGame();
-  requestAnimationFrame(frame);
+  accumulator += elapsed;
+  while (accumulator >= 1 / 60) {
+    if (state.mode === "game") updateGameFrame();
+    accumulator -= 1 / 60;
+  }
+  draw();
+  requestAnimationFrame(tick);
 }
 
-function ensureAudio() {
-  if (!state.sound) return;
-  if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
-  if (audio.state === "suspended") audio.resume();
-}
-
-function sound(kind) {
-  if (!state.sound || !audio || audio.state !== "running") return;
-  const sounds = { launch: [420, .08, "sine"], hit: [250, .035, "square"], hard: [120, .05, "square"], wall: [180, .025, "sine"], paddle: [320, .045, "triangle"], bomb: [85, .16, "sawtooth"], life: [740, .14, "sine"], score: [900, .1, "triangle"], power: [510, .1, "sine"], clear: [640, .18, "sine"], stage: [780, .16, "triangle"], lose: [90, .18, "sawtooth"] };
-  const [frequency, length, wave] = sounds[kind] || sounds.hit;
-  const oscillator = audio.createOscillator(), gain = audio.createGain();
-  oscillator.type = wave; oscillator.frequency.setValueAtTime(frequency, audio.currentTime);
-  gain.gain.setValueAtTime(.045, audio.currentTime); gain.gain.exponentialRampToValueAtTime(.001, audio.currentTime + length);
-  oscillator.connect(gain).connect(audio.destination); oscillator.start(); oscillator.stop(audio.currentTime + length);
-}
-
-function setPointer(clientX) {
+function toCanvasPoint(event) {
   const rect = canvas.getBoundingClientRect();
-  const x = (clientX - rect.left) * W / rect.width;
-  state.paddle.target = x;
+  return { x: (event.clientX - rect.left) * WINDOW.width / rect.width, y: (event.clientY - rect.top) * WINDOW.height / rect.height };
 }
 
-input = { left: false, right: false };
-canvas.addEventListener("pointermove", event => setPointer(event.clientX));
-canvas.addEventListener("pointerdown", event => { setPointer(event.clientX); if (state.mode === "title" || state.mode === "ready") startOrPause(); });
-document.addEventListener("keydown", event => {
-  if (["ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
-  if (event.code === "ArrowLeft") input.left = true;
-  if (event.code === "ArrowRight") input.right = true;
-  if (event.code === "Space" && !event.repeat) startOrPause();
-  if (event.code === "KeyR" && !event.repeat) resetGame();
+canvas.addEventListener("pointermove", event => {
+  if (state.mode !== "game") return;
+  const point = toCanvasPoint(event);
+  state.paddle.x = Math.max(FIELD.minX + state.paddle.width, Math.min(FIELD.maxX - state.paddle.width, point.x));
 });
-document.addEventListener("keyup", event => { if (event.code === "ArrowLeft") input.left = false; if (event.code === "ArrowRight") input.right = false; });
-ui.start.addEventListener("click", startOrPause);
-ui.restart.addEventListener("click", resetGame);
-ui.sound.addEventListener("click", () => { state.sound = !state.sound; ui.sound.setAttribute("aria-pressed", String(state.sound)); ui.sound.textContent = state.sound ? "♪" : "×"; if (state.sound) ensureAudio(); });
 
-resetGame();
-lastTime = performance.now();
-requestAnimationFrame(frame);
+canvas.addEventListener("pointerdown", event => {
+  const point = toCanvasPoint(event);
+  if (event.button !== 0) return;
+  if (state.mode === "title") {
+    if (point.x >= START_BUTTON.x && point.x <= START_BUTTON.x + START_BUTTON.width && point.y >= START_BUTTON.y && point.y <= START_BUTTON.y + START_BUTTON.height) beginGame();
+  } else if (state.mode === "pause") {
+    state.mode = "game";
+    state.readyFrames = 120;
+    canvas.style.cursor = "none";
+  } else if (state.mode === "allclear") {
+    resetGame();
+  }
+});
 
+canvas.addEventListener("contextmenu", event => {
+  event.preventDefault();
+  if (state.mode === "game") {
+    state.mode = "pause";
+    canvas.style.cursor = "pointer";
+  }
+});
+
+Promise.all(imageFiles.map(loadImage)).then(imageEntries => {
+  imageEntries.forEach(([name, image]) => { images[name] = image; });
+  soundFiles.map(loadSound).forEach(([name, sound]) => { sounds[name] = sound; });
+  return loadStages();
+}).then(layouts => {
+  stageLayouts = layouts;
+  resetGame();
+  requestAnimationFrame(tick);
+}).catch(error => {
+  ctx.fillStyle = "#111";
+  ctx.fillRect(0, 0, WINDOW.width, WINDOW.height);
+  ctx.fillStyle = "white";
+  ctx.font = "20px sans-serif";
+  ctx.fillText(error.message, 32, 60);
+  console.error(error);
+});

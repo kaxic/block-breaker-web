@@ -1,8 +1,7 @@
 :root {
-  color-scheme: dark;
-  font-family: Inter, "Hiragino Kaku Gothic ProN", "Yu Gothic", system-ui, sans-serif;
-  background: #07101f;
-  color: #f4f7ff;
+  background: #111;
+  color: #e8e8e8;
+  font-family: "Yu Gothic", Meiryo, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -11,143 +10,82 @@ body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
-  background:
-    radial-gradient(circle at 20% 0%, rgba(25, 104, 183, .35), transparent 32rem),
-    radial-gradient(circle at 100% 100%, rgba(100, 30, 147, .28), transparent 32rem),
-    #07101f;
-}
-
-button { font: inherit; }
-
-.page-shell {
-  width: min(1120px, calc(100% - 28px));
-  margin: 0 auto;
-  padding: 28px 0 22px;
-}
-
-.game-card {
-  overflow: hidden;
-  border: 1px solid rgba(154, 197, 255, .25);
-  border-radius: 24px;
-  background: rgba(8, 20, 42, .86);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, .36);
-}
-
-.game-header, .status-bar, .action-row, .guide { padding-inline: clamp(18px, 4vw, 42px); }
-
-.game-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding-top: 25px;
-  padding-bottom: 16px;
-}
-
-.eyebrow {
-  margin: 0 0 5px;
-  color: #78caff;
-  font-size: .72rem;
-  font-weight: 800;
-  letter-spacing: .18em;
-}
-
-h1 { margin: 0; font-size: clamp(1.6rem, 5vw, 2.4rem); letter-spacing: .035em; }
-h1 span { color: #8ba4c8; font-size: .52em; font-weight: 600; }
-
-.icon-button, .secondary-button, .primary-button {
-  cursor: pointer;
-  color: #f5f8ff;
-  border: 1px solid rgba(170, 209, 255, .36);
-  border-radius: 12px;
-  background: rgba(97, 142, 209, .13);
-  transition: transform .15s ease, background .15s ease;
-}
-
-.icon-button { width: 42px; height: 42px; font-size: 1.2rem; }
-.icon-button[aria-pressed="false"] { color: #91a0b5; }
-.icon-button:hover, .secondary-button:hover { background: rgba(97, 142, 209, .28); }
-button:active { transform: translateY(1px); }
-
-.status-bar {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  padding-bottom: 16px;
+  place-items: center;
+  background: #111;
 }
 
-.status-item {
-  min-width: 0;
-  padding: 11px 13px;
-  border: 1px solid rgba(150, 189, 240, .16);
-  border-radius: 12px;
-  background: rgba(2, 10, 25, .42);
+main {
+  width: min(100%, 780px);
+  padding: 12px 0;
 }
 
-.status-item span { display: block; color: #91a3be; font-size: .66rem; font-weight: 700; letter-spacing: .11em; }
-.status-item strong { display: block; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; color: #ffffff; font-size: clamp(.9rem, 2vw, 1.18rem); }
-
-.canvas-frame {
-  position: relative;
-  width: min(100%, 960px);
-  margin: 0 auto;
-  aspect-ratio: 3 / 2;
-  overflow: hidden;
-  background: #061221;
+#game-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: auto;
+  background: #000;
   touch-action: none;
 }
 
-#game-canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
-
-.message-overlay {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-content: center;
-  gap: 8px;
-  padding: 24px;
+.instructions {
+  min-height: 34px;
+  margin: 10px 14px 0;
+  padding: 5px 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px 14px;
+  flex-wrap: wrap;
+  border: 1px solid rgba(139, 210, 242, .28);
+  border-radius: 5px;
+  background: linear-gradient(90deg, rgba(34, 55, 73, .88), rgba(23, 34, 46, .92));
+  box-shadow: inset 0 1px rgba(255, 255, 255, .08), 0 5px 16px rgba(0, 0, 0, .22);
+  color: #e9f4fa;
+  font-size: .75rem;
+  line-height: 1.35;
+  letter-spacing: .02em;
   text-align: center;
-  background: rgba(3, 12, 29, .55);
-  backdrop-filter: blur(3px);
-  transition: opacity .2s ease, visibility .2s ease;
-  pointer-events: none;
 }
 
-.message-overlay.hidden { opacity: 0; visibility: hidden; }
-.message-overlay p { margin: 0; color: #c3d9fa; font-weight: 600; }
-.message-overlay h2 { margin: 0; font-size: clamp(2rem, 6vw, 3.8rem); text-shadow: 0 4px 20px #000; }
-#message-kicker { color: #74ceff; font-size: .75rem; letter-spacing: .2em; }
-
-.action-row { display: flex; justify-content: center; gap: 10px; padding-top: 17px; padding-bottom: 16px; }
-.primary-button, .secondary-button { padding: 11px 20px; font-weight: 800; }
-.primary-button { border: 0; background: linear-gradient(135deg, #25b9fc, #655af5); box-shadow: 0 8px 24px rgba(69, 122, 255, .3); }
-.primary-button:hover { background: linear-gradient(135deg, #50caff, #8279ff); }
-
-.guide {
-  display: grid;
-  grid-template-columns: 1fr 1.4fr;
-  gap: 22px;
-  padding-top: 17px;
-  padding-bottom: 24px;
-  border-top: 1px solid rgba(150, 189, 240, .14);
-  color: #aebed5;
-  font-size: .84rem;
-  line-height: 1.65;
+.instruction-label {
+  padding: 2px 7px;
+  border-radius: 3px;
+  background: #66c7df;
+  color: #10232d;
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .12em;
 }
 
-.guide h2 { margin: 0 0 3px; color: #e9f1ff; font-size: .86rem; }
-.guide p { margin: 0; }
-kbd { display: inline-block; min-width: 1.4em; margin: 0 1px; padding: 0 .24em; color: #dceaff; border: 1px solid #526986; border-radius: 4px; background: #142640; font: .78em ui-monospace, monospace; text-align: center; }
-.legend { display: inline-block; width: .8em; height: .8em; margin: 0 .16em 0 .25em; border-radius: 2px; vertical-align: -.04em; }
-.bomb { background: #ff6a4f; }.life { background: #5ae989; }.score { background: #ffd65c; }.wide { background: #8a8dff; }.narrow { background: #dd78ff; }
-footer { padding-top: 13px; color: #7587a1; font-size: .76rem; text-align: center; }
-
-@media (max-width: 620px) {
-  .page-shell { width: 100%; padding: 0; }
-  .game-card { border-right: 0; border-left: 0; border-radius: 0; }
-  .game-header { padding-top: 19px; }
-  .status-bar { grid-template-columns: repeat(2, 1fr); }
-  .guide { grid-template-columns: 1fr; gap: 12px; }
-  footer { padding: 13px 18px; }
+.instruction-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
 }
 
+kbd {
+  min-width: 4.3em;
+  padding: 2px 5px;
+  border: 1px solid rgba(255, 255, 255, .36);
+  border-bottom-color: rgba(0, 0, 0, .7);
+  border-radius: 3px;
+  background: linear-gradient(#4c6476, #2b4050);
+  box-shadow: inset 0 1px rgba(255, 255, 255, .22), 0 1px 1px rgba(0, 0, 0, .42);
+  color: #fff;
+  font-family: inherit;
+  font-size: .7rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+}
+
+@media (max-width: 540px) {
+  .instructions {
+    margin-inline: 8px;
+    gap: 5px 9px;
+    padding-inline: 7px;
+  }
+}
