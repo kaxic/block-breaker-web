@@ -20,6 +20,64 @@ main {
   padding: 12px 0;
 }
 
+.game-view {
+  position: relative;
+}
+
+.stage-picker {
+  position: absolute;
+  top: 79%;
+  left: 14%;
+  width: 72%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: #173b46;
+}
+
+.stage-picker[hidden] { display: none; }
+
+.stage-picker legend {
+  margin: 0 auto 6px;
+  padding: 0;
+  font-size: clamp(16px, 2.8vw, 22px);
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.stage-options {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.stage-button {
+  height: clamp(28px, 4.6vw, 36px);
+  padding: 0;
+  border: 2px solid #247c8e;
+  border-radius: 6px;
+  background: #fff9db;
+  color: #173b46;
+  font: 700 clamp(17px, 3.1vw, 24px) / 1 "Segoe UI", sans-serif;
+  cursor: pointer;
+}
+
+.stage-button:hover { background: #d2f3f5; }
+
+.stage-button[aria-pressed="true"] {
+  border-color: #123c48;
+  background: #123c48;
+  color: #fff;
+  box-shadow: inset 0 0 0 2px #69d5e8;
+}
+
+.stage-button:focus-visible {
+  outline: 3px solid #007cac;
+  outline-offset: 2px;
+}
+
 #game-canvas {
   display: block;
   width: 100%;
@@ -83,6 +141,25 @@ kbd {
 }
 
 @media (max-width: 540px) {
+  .stage-picker {
+    position: static;
+    width: auto;
+    margin: 12px 10px 0;
+    padding: 10px;
+    border: 1px solid #66c7df;
+    border-radius: 8px;
+    background: #182e3b;
+    color: #e9f4fa;
+  }
+
+  .stage-picker legend {
+    padding: 0 6px;
+    font-size: 18px;
+  }
+
+  .stage-options { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .stage-button { height: 40px; font-size: 22px; }
+
   .instructions {
     margin-inline: 8px;
     gap: 5px 9px;

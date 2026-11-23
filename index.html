@@ -4,18 +4,24 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ブロック崩し for Web</title>
-    <link rel="stylesheet" href="style.css?v=20260908-hud-balance" />
+    <link rel="stylesheet" href="style.css?v=20261123-stage-select" />
   </head>
   <body>
     <main>
-      <canvas id="game-canvas" width="780" height="620" aria-label="ブロック崩し"></canvas>
-      <p class="instructions" aria-label="操作方法：タイトル画面で左クリックすると開始します。マウスでバーを動かし、右クリックで一時停止、左クリックで再開します。">
+      <div class="game-view">
+        <canvas id="game-canvas" width="780" height="620" aria-label="ブロック崩し"></canvas>
+        <fieldset id="stage-picker" class="stage-picker" hidden disabled>
+          <legend>開始ステージを選択</legend>
+          <div id="stage-options" class="stage-options"></div>
+        </fieldset>
+      </div>
+      <p class="instructions" aria-label="操作方法：タイトル画面で開始ステージを選び、ゲームスタートを左クリックします。マウスでバーを動かし、右クリックで一時停止、左クリックで再開します。">
         <span class="instruction-label">操作方法</span>
         <span class="instruction-item">開始・再開 <kbd>左クリック</kbd></span>
         <span class="instruction-item">バー移動 <kbd>マウス</kbd></span>
         <span class="instruction-item">一時停止 <kbd>右クリック</kbd></span>
       </p>
     </main>
-    <script src="game.js?v=20260908-large-labels"></script>
+    <script src="game.js?v=20261123-stage-select"></script>
   </body>
 </html>

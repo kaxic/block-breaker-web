@@ -2,6 +2,8 @@
 
 const canvas = document.querySelector("#game-canvas");
 const ctx = canvas.getContext("2d");
+const stagePicker = document.querySelector("#stage-picker");
+const stageOptions = document.querySelector("#stage-options");
 
 const WINDOW = { width: 780, height: 620 };
 const FIELD = { minX: 10, minY: 10, maxX: 490, maxY: 610, blockW: 40, blockH: 20, cols: 12, rows: 30 };
@@ -26,6 +28,8 @@ const soundFiles = ["bound.wav", "delete.wav", "Hblock.mp3", "爆発.wav", "1up.
 const images = {};
 const sounds = {};
 let stageLayouts = [];
+let selectedStartStage = 1;
+let stageButtons = [];
 let state;
 let lastTime = performance.now();
 let accumulator = 0;
@@ -90,9 +94,34 @@ function resetGame() {
   const highscore = state ? state.highscore : Number(localStorage.getItem("block-breaker-web-highscore") || 0);
   state = createState();
   state.highscore = highscore;
-  setStage(1);
+  setStage(selectedStartStage);
   state.mode = "title";
   canvas.style.cursor = "pointer";
+  stagePicker.hidden = false;
+  stagePicker.disabled = false;
+}
+
+function createStagePicker() {
+  stageButtons = Array.from({ length: STAGE_NUM }, (_, index) => {
+    const number = index + 1;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "stage-button";
+    button.textContent = String(number);
+    button.setAttribute("aria-label", `ステージ ${number}`);
+    button.setAttribute("aria-pressed", String(number === selectedStartStage));
+    button.addEventListener("click", () => selectStartStage(number));
+    return button;
+  });
+  stageOptions.replaceChildren(...stageButtons);
+}
+
+function selectStartStage(number) {
+  if (state?.mode !== "title" || !Number.isInteger(number) || number < 1 || number > STAGE_NUM) return;
+  selectedStartStage = number;
+  stageButtons.forEach((button, index) => {
+    button.setAttribute("aria-pressed", String(index + 1 === number));
+  });
 }
 
 function setStage(number) {
@@ -106,7 +135,7 @@ function beginGame() {
   state.mode = "game";
   state.life = LIFE_SET;
   state.score = 0;
-  setStage(1);
+  setStage(selectedStartStage);
   state.paddle.x = 320;
   state.paddle.width = 40;
   resetBall();
@@ -114,6 +143,8 @@ function beginGame() {
   state.clearFrames = 0;
   state.effects = [];
   canvas.style.cursor = "none";
+  stagePicker.hidden = true;
+  stagePicker.disabled = true;
 }
 
 function getBlockAt(pointX, pointY) {
@@ -431,12 +462,13 @@ function toCanvasPoint(event) {
 }
 
 canvas.addEventListener("pointermove", event => {
-  if (state.mode !== "game") return;
+  if (!state || state.mode !== "game") return;
   const point = toCanvasPoint(event);
   state.paddle.x = Math.max(FIELD.minX + state.paddle.width, Math.min(FIELD.maxX - state.paddle.width, point.x));
 });
 
 canvas.addEventListener("pointerdown", event => {
+  if (!state) return;
   const point = toCanvasPoint(event);
   if (event.button !== 0) return;
   if (state.mode === "title") {
@@ -452,7 +484,7 @@ canvas.addEventListener("pointerdown", event => {
 
 canvas.addEventListener("contextmenu", event => {
   event.preventDefault();
-  if (state.mode === "game") {
+  if (state?.mode === "game") {
     state.mode = "pause";
     canvas.style.cursor = "pointer";
   }
@@ -464,6 +496,7 @@ Promise.all(imageFiles.map(loadImage)).then(imageEntries => {
   return loadStages();
 }).then(layouts => {
   stageLayouts = layouts;
+  createStagePicker();
   resetGame();
   requestAnimationFrame(tick);
 }).catch(error => {
